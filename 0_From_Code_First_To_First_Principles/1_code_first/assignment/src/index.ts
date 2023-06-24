@@ -7,93 +7,113 @@ const app = express();
 
 app.use(express.json());
 
-app.post("/user/new", async (req, res) => {
-  const { email, username, firstName, lastName } = req.body.data;
+app.post("/user/new", async (req, res, next) => {
+  try {
+    const { email, username, firstName, lastName } = req.body.data;
 
-  if (!email || !username || !firstName || !lastName) {
-    return res
-      .status(400)
-      .json({ success: false, error: "Missing mandatory fields." });
-  }
+    if (!email || !username || !firstName || !lastName) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing mandatory fields." });
+    }
 
-  const conflictUsers = await prisma.user.findMany({
-    where: { email, username },
-  });
-
-  if (conflictUsers.length) {
-    return res.status(400).json({
-      success: false,
-      error: "The email or username are already taken.",
+    const conflictUsers = await prisma.user.findMany({
+      where: { email, username },
     });
+
+    if (conflictUsers.length) {
+      return res.status(400).json({
+        success: false,
+        error: "The email or username are already taken.",
+      });
+    }
+
+    await prisma.user.create({
+      data: { email, username, firstName, lastName },
+    });
+
+    return res.status(201).json({ success: true });
+  } catch (error) {
+    return next(error);
   }
-
-  await prisma.user.create({
-    data: { email, username, firstName, lastName },
-  });
-
-  return res.status(201).json({ success: true });
 });
 
-app.put("/user/edit/:userId", async (req, res) => {
-  const userId = Number(req.params.userId);
-  const { email, username, firstName, lastName } = req.body.data;
+app.put("/user/edit/:userId", async (req, res, next) => {
+  try {
+    const userId = Number(req.params.userId);
+    const { email, username, firstName, lastName } = req.body.data;
 
-  if (email || username) {
-    return res.status(400).json({
-      success: false,
-      error: "You can't modify the email and username fields.",
+    if (email || username) {
+      return res.status(400).json({
+        success: false,
+        error: "You can't modify the email and username fields.",
+      });
+    }
+
+    if (!firstName && !lastName) {
+      return res.status(400).json({
+        success: false,
+        error: "You must at least modify one field.",
+      });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "The user was not found",
+      });
+    }
+
+    await prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        firstName,
+        lastName,
+      },
     });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return next(error);
   }
-
-  if (!firstName && !lastName) {
-    return res.status(400).json({
-      success: false,
-      error: "You must at least modify one field.",
-    });
-  }
-
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-
-  if (!user) {
-    return res.status(404).json({
-      success: false,
-      error: "The user was not found",
-    });
-  }
-
-  await prisma.user.update({
-    where: {
-      id: userId,
-    },
-    data: {
-      firstName,
-      lastName,
-    },
-  });
-
-  return res.status(200).json({ success: true });
 });
 
-app.get("/user", async (req, res) => {
-  if (!req?.query?.email) {
-    return res.status(400).json({
-      success: false,
-      error: "You must specify a user email.",
-    });
+app.get("/user", async (req, res, next) => {
+  try {
+    if (!req?.query?.email) {
+      return res.status(400).json({
+        success: false,
+        error: "You must specify a user email.",
+      });
+    }
+
+    const email = String(req.query.email);
+
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "The user was not found",
+      });
+    }
+
+    return res.status(200).json({ success: true, data: { user } });
+  } catch (error) {
+    return next(error);
   }
+});
 
-  const email = String(req.query.email);
+app.use((error: any, req: any, res: any, next: any) => {
+  console.error(error);
 
-  const user = await prisma.user.findUnique({ where: { email } });
-
-  if (!user) {
-    return res.status(404).json({
-      success: false,
-      error: "The user was not found",
-    });
-  }
-
-  return res.status(200).json({ success: true, data: { user } });
+  return res
+    .status(500)
+    .json({ success: false, error: "Internal server error" });
 });
 
 const APP_URL = process.env.APP_URL;
