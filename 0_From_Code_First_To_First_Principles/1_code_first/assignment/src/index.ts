@@ -1,10 +1,13 @@
 import express from "express";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 const app = express();
 
 app.use(express.json());
 
-app.post("/user/new", (req, res) => {
+app.post("/user/new", async (req, res) => {
   const { email, username, firstName, lastName } = req.body.data;
 
   if (!email || !username || !firstName || !lastName) {
