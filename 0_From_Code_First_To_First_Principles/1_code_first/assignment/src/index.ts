@@ -18,7 +18,7 @@ app.post("/user/new", async (req, res, next) => {
     }
 
     const conflictUsers = await prisma.user.findMany({
-      where: { email, username },
+      where: { OR: [{ email }, { username }] },
     });
 
     if (conflictUsers.length) {
